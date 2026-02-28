@@ -76,6 +76,37 @@ export function useTaskStream(
           })
           break
 
+        case 'agent_thinking':
+          if (event.thinking?.trim()) {
+            setSteps(prev => [...prev, {
+              id:     `think-${Date.now()}`,
+              name:   event.thinking!,
+              tool:   'thinking',
+              status: 'done',
+              output: '',
+            }])
+          }
+          break
+
+        case 'agent_text':
+          if (event.text?.trim()) {
+            setSteps(prev => {
+              // 收到真实模型内容时，移除之前的 loading hint
+              const filtered = event.is_loading_hint
+                ? prev
+                : prev.filter(s => !s.isLoadingHint)
+              return [...filtered, {
+                id:             `txt-${Date.now()}`,
+                name:           event.text!,
+                tool:           'text',
+                status:         'done',
+                output:         '',
+                isLoadingHint:  event.is_loading_hint ?? false,
+              }]
+            })
+          }
+          break
+
         case 'artifact_ready':
           setReportUrl(event.download_url ?? null)
           break

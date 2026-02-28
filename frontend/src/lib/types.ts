@@ -30,6 +30,7 @@ export interface Step {
   code?: string
   file_url?: string
   duration_ms?: number
+  isLoadingHint?: boolean   // 任务启动时的系统提示，非模型真实输出
 }
 
 export interface Task {
@@ -40,6 +41,7 @@ export interface Task {
   artifact_url: string | null
   error: string | null
   steps: Step[]
+  session_id?: string
 }
 
 // SSE 事件
@@ -47,6 +49,8 @@ export type SSEEventType =
   | 'step_start'
   | 'code_output'
   | 'step_done'
+  | 'agent_text'
+  | 'agent_thinking'
   | 'artifact_ready'
   | 'task_done'
   | 'error'
@@ -65,6 +69,11 @@ export interface SSEEvent {
   // step_done
   duration_ms?: number
   file_url?: string
+  // agent_text
+  text?: string
+  is_loading_hint?: boolean
+  // agent_thinking
+  thinking?: string
   // artifact_ready
   filename?: string
   download_url?: string

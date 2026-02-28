@@ -15,7 +15,7 @@ from pathlib import Path
 from claude_code_sdk import (
     query, ClaudeCodeOptions,
     AssistantMessage, UserMessage, ResultMessage,
-    TextBlock, ToolUseBlock, ToolResultBlock,
+    TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock,
 )
 
 from app.config import CLAUDE_MODEL, CLAUDE_MAX_TURNS
@@ -67,7 +67,8 @@ async def run_agent(
         f"  2. 读取文件时使用上方列出的绝对路径\n"
         f"  3. 写报告时路径填写：{output_dir}/report.html\n"
         f"  4. 缺少 Python 包时：pip3 install <包名> --break-system-packages -q\n"
-        f"  5. 编写 Python 脚本时，用 Write 工具将脚本写成 .py 文件，再用 Bash 执行，不要用 heredoc\n\n"
+        f"  5. 【强制】执行 Python 代码必须分两步：先用 Write 工具写 .py 文件，再用 Bash 执行该文件。\n"
+        f"     禁止用 heredoc / python3 -c / bash -c 等任何内联方式直接运行 Python 代码\n\n"
         f"请完成分析，用 Write 工具将最终报告写入 {output_dir}/report.html"
     )
 
@@ -93,9 +94,19 @@ async def run_agent(
 
     task_manager.update_status(task.id, TaskStatus.RUNNING)
 
+    # ── 立即推送一条信号，避免前端长时间空白等待 ─────────────
+    # SDK 要启动 claude CLI 子进程 + 等模型第一个 token，可能 5-15s
+    # 先推一个事件让前端知道 Agent 已经开始跑了
+    await _push(event_queue, EventType.AGENT_TEXT, {
+        "text": "正在分析文件，准备执行任务…",
+        "is_loading_hint": True,       # 前端可据此做差异化样式
+    })
+
     # ── 消息流处理 ────────────────────────────────────────
     last_text = ""
     step_map: dict[str, object] = {}
+    written_files: dict[str, str] = {}   # filename → source code
+    first_real_message = True             # 收到第一条真实内容后标记
 
     try:
         async for message in query(prompt=prompt, options=options):
@@ -106,22 +117,25 @@ async def run_agent(
                     continue
                 for block in content:
                     if isinstance(block, ToolUseBlock):
-                        step = task.add_step(block.name, block.name)
+                        input_data = block.input if isinstance(block.input, dict) else {}
+                        step_name, step_code = _extract_step_info(
+                            block.name, input_data, written_files)
+                        step = task.add_step(step_name, block.name)
                         step_map[block.id] = step
                         await _push(event_queue, EventType.STEP_START, {
                             "step_id":   step.id,
-                            "step_name": block.name,
+                            "step_name": step_name,
                             "tool":      block.name,
-                            "code":      str(block.input)[:1000],
+                            "code":      step_code,
                         })
 
                     elif isinstance(block, ToolResultBlock):
                         step = step_map.get(block.tool_use_id)
                         output = ""
                         if isinstance(block.content, str):
-                            output = block.content[:500]
+                            output = block.content[:2000]
                         elif isinstance(block.content, list):
-                            output = str(block.content)[:500]
+                            output = str(block.content)[:2000]
 
                         file_url = _extract_file_url(output, task.id)
 
@@ -141,9 +155,18 @@ async def run_agent(
                                 "file_url":    file_url,
                             })
 
+                    elif isinstance(block, ThinkingBlock):
+                        if block.thinking and block.thinking.strip():
+                            await _push(event_queue, EventType.AGENT_THINKING, {
+                                "thinking": block.thinking.strip(),
+                            })
+
                     elif isinstance(block, TextBlock):
-                        if block.text:
+                        if block.text and block.text.strip():
                             last_text = block.text
+                            await _push(event_queue, EventType.AGENT_TEXT, {
+                                "text": block.text.strip(),
+                            })
 
             elif isinstance(message, ResultMessage):
                 # 捕获 session_id，供追问功能使用
@@ -241,6 +264,7 @@ async def run_followup(
 
     last_text = ""
     step_map: dict[str, object] = {}
+    written_files: dict[str, str] = {}   # filename → source code
 
     try:
         async for message in query(prompt=prompt, options=options):
@@ -251,22 +275,25 @@ async def run_followup(
                     continue
                 for block in content:
                     if isinstance(block, ToolUseBlock):
-                        step = task.add_step(block.name, block.name)
+                        input_data = block.input if isinstance(block.input, dict) else {}
+                        step_name, step_code = _extract_step_info(
+                            block.name, input_data, written_files)
+                        step = task.add_step(step_name, block.name)
                         step_map[block.id] = step
                         await _push(event_queue, EventType.STEP_START, {
                             "step_id":   step.id,
-                            "step_name": block.name,
+                            "step_name": step_name,
                             "tool":      block.name,
-                            "code":      str(block.input)[:1000],
+                            "code":      step_code,
                         })
 
                     elif isinstance(block, ToolResultBlock):
                         step = step_map.get(block.tool_use_id)
                         output = ""
                         if isinstance(block.content, str):
-                            output = block.content[:500]
+                            output = block.content[:2000]
                         elif isinstance(block.content, list):
-                            output = str(block.content)[:500]
+                            output = str(block.content)[:2000]
 
                         file_url = _extract_file_url(output, task.id)
 
@@ -286,9 +313,18 @@ async def run_followup(
                                 "file_url":    file_url,
                             })
 
+                    elif isinstance(block, ThinkingBlock):
+                        if block.thinking and block.thinking.strip():
+                            await _push(event_queue, EventType.AGENT_THINKING, {
+                                "thinking": block.thinking.strip(),
+                            })
+
                     elif isinstance(block, TextBlock):
-                        if block.text:
+                        if block.text and block.text.strip():
                             last_text = block.text
+                            await _push(event_queue, EventType.AGENT_TEXT, {
+                                "text": block.text.strip(),
+                            })
 
             elif isinstance(message, ResultMessage):
                 if hasattr(message, 'session_id') and message.session_id:
@@ -344,6 +380,51 @@ def _describe_files(upload_dir: Path) -> str:
         size_kb = f.stat().st_size // 1024
         lines.append(f"  - {f.name} ({size_kb} KB)")
     return "\n".join(lines)
+
+
+def _extract_step_info(
+    tool: str,
+    input_data: dict,
+    written_files: dict[str, str],
+) -> tuple[str, str]:
+    """
+    从工具调用的 input 中提取：
+      - 步骤展示名称（人类可读）
+      - 代码内容（在右侧面板展示）
+
+    核心优化：Bash 执行 python 文件时，返回对应的 .py 源码而非命令本身。
+    """
+    import re as _re
+
+    if tool == "Write":
+        path     = input_data.get("path", "")
+        content  = input_data.get("content", "")
+        filename = Path(path).name
+        written_files[filename] = content          # 缓存，供后续 Bash 步骤引用
+        if filename.endswith('.py'):
+            # .py 文件由后续 Bash 步骤展示，这里只缓存不显示
+            return f"写入脚本 {filename}", content
+        return f"创建文件 {filename}", content
+
+    elif tool == "Bash":
+        command = input_data.get("command", "").strip()
+        # 检测 python3 filename.py 形式
+        m = _re.search(r'python3?\s+([\w./-]+\.py)', command)
+        if m:
+            py_file = Path(m.group(1)).name
+            code    = written_files.get(py_file, command)  # 优先展示源码
+            return f"运行代码 {py_file}", code
+        # 其他 bash 命令：取第一行作为名称
+        first_line = command.split('\n')[0][:60].strip() or "执行命令"
+        return first_line, command
+
+    elif tool == "Read":
+        path     = input_data.get("file_path", input_data.get("path", ""))
+        filename = Path(path).name
+        return f"读取文件 {filename}", path
+
+    else:
+        return tool, str(input_data)[:2000]
 
 
 def _extract_file_url(output: str, task_id: str) -> str | None:

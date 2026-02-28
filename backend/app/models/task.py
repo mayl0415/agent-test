@@ -29,6 +29,8 @@ class EventType(str, Enum):
     STEP_START     = "step_start"      # Agent 开始一个工具调用
     CODE_OUTPUT    = "code_output"     # 沙盒执行结果
     STEP_DONE      = "step_done"       # 单步完成
+    AGENT_TEXT     = "agent_text"      # 模型中间文字输出（工具调用之间）
+    AGENT_THINKING = "agent_thinking"  # 模型扩展思考内容（ThinkingBlock）
     ARTIFACT_READY = "artifact_ready"  # 产物生成
     TASK_DONE      = "task_done"       # 全部完成
     ERROR          = "error"           # 任务失败
