@@ -1,0 +1,29 @@
+name: 数据可视化分析
+description: 分析 CSV / Excel / JSON 数据文件，生成带图表的 HTML 可视化报告
+icon: 📊
+tags: [数据分析, 可视化, 报告]
+
+tools:
+  - bash
+  - file_write
+
+sandbox:
+  enabled: false          # 本地开发设为 false；生产设为 true
+  image: python:3.11-slim
+  timeout: 60
+
+input:
+  - type: file
+    accept: [.csv, .xlsx, .xls, .json]
+    label: 上传数据文件
+    required: true
+    max_size: 50mb
+  - type: text
+    label: 分析要求（可选）
+    required: false
+
+output: html_report
+
+memory:
+  short_term: true
+  long_term: false

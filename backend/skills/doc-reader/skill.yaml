@@ -1,0 +1,29 @@
+name: 文档智能摘要
+description: 读取 PDF / Word / TXT 文档，提取关键信息并生成结构化摘要报告
+icon: 📄
+tags: [文档, 摘要, 阅读]
+
+tools:
+  - bash
+  - file_write
+
+sandbox:
+  enabled: false
+  image: python:3.11-slim
+  timeout: 30
+
+input:
+  - type: file
+    accept: [.pdf, .docx, .txt, .md]
+    label: 上传文档
+    required: true
+    max_size: 20mb
+  - type: text
+    label: 关注重点（可选，如"合同风险点"、"技术方案"）
+    required: false
+
+output: markdown_report
+
+memory:
+  short_term: true
+  long_term: false
