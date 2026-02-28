@@ -4,8 +4,11 @@ import type { Skill, Task } from './types'
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE ?? '/api'
 
+// ngrok 免费版会对浏览器请求插入警告拦截页，加此头跳过
+const EXTRA_HEADERS = { 'ngrok-skip-browser-warning': '1' }
+
 export async function fetchSkills(): Promise<Skill[]> {
-  const res = await fetch(`${BASE}/skills`)
+  const res = await fetch(`${BASE}/skills`, { headers: EXTRA_HEADERS })
   if (!res.ok) throw new Error('获取 Skill 列表失败')
   return res.json()
 }
@@ -19,19 +22,19 @@ export async function createTask(
   form.append('skill_id', skillId)
   if (file) form.append('file', file)
   if (textInputs && textInputs.trim()) form.append('text_inputs', textInputs.trim())
-  const res = await fetch(`${BASE}/tasks`, { method: 'POST', body: form })
+  const res = await fetch(`${BASE}/tasks`, { method: 'POST', body: form, headers: EXTRA_HEADERS })
   if (!res.ok) throw new Error('创建任务失败')
   return res.json()
 }
 
 export async function fetchTask(taskId: string): Promise<Task> {
-  const res = await fetch(`${BASE}/tasks/${taskId}`)
+  const res = await fetch(`${BASE}/tasks/${taskId}`, { headers: EXTRA_HEADERS })
   if (!res.ok) throw new Error('获取任务失败')
   return res.json()
 }
 
 export async function deleteTask(taskId: string): Promise<void> {
-  await fetch(`${BASE}/tasks/${taskId}`, { method: 'DELETE' })
+  await fetch(`${BASE}/tasks/${taskId}`, { method: 'DELETE', headers: EXTRA_HEADERS })
 }
 
 export async function sendFollowup(
@@ -43,6 +46,7 @@ export async function sendFollowup(
   const res = await fetch(`${BASE}/tasks/${taskId}/followup`, {
     method: 'POST',
     body: form,
+    headers: EXTRA_HEADERS,
   })
   if (!res.ok) throw new Error('追问请求失败')
   return res.json()

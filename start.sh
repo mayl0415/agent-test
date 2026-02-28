@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────
 #  Agent 平台一键启动脚本
-#  用法: ./start.sh [--no-frontend] [--no-backend] [--stop]
+#  用法: ./start.sh [--no-frontend] [--no-backend] [--ngrok] [--stop]
 # ─────────────────────────────────────────────────────────────
 set -e
 
@@ -20,10 +20,12 @@ error()   { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 # ── 解析参数 ─────────────────────────────────────────────────
 RUN_BACKEND=true
 RUN_FRONTEND=true
+RUN_NGROK=false
 for arg in "$@"; do
   case $arg in
     --no-frontend) RUN_FRONTEND=false ;;
     --no-backend)  RUN_BACKEND=false  ;;
+    --ngrok)       RUN_NGROK=true     ;;
     --stop)        ACTION=stop        ;;
   esac
 done
@@ -43,9 +45,10 @@ stop_services() {
     fi
     rm -f "$pidfile"
   done
-  # 兜底：清理可能残留的 uvicorn / next-server 进程
+  # 兜底：清理可能残留的 uvicorn / next-server / ngrok 进程
   pkill -f "uvicorn app.main:app" 2>/dev/null || true
   pkill -f "next-server" 2>/dev/null || true
+  pkill -f "ngrok http" 2>/dev/null || true
   info "所有服务已停止。"
 }
 
@@ -132,17 +135,43 @@ start_frontend() {
   info "前端已启动 (PID $!) → http://localhost:3000  日志: frontend.log"
 }
 
+# ── 启动 ngrok ───────────────────────────────────────────────
+start_ngrok() {
+  if ! command -v ngrok &>/dev/null; then
+    warn "未找到 ngrok，跳过。安装: https://ngrok.com/download"
+    return
+  fi
+  info "启动 ngrok 隧道..."
+  pkill -f "ngrok http" 2>/dev/null || true
+  ngrok http 3000 --log=stdout > "$SCRIPT_DIR/ngrok.log" 2>&1 &
+  echo $! > "$PID_DIR/ngrok.pid"
+
+  # 等待隧道就绪并打印公网地址
+  for i in $(seq 1 15); do
+    NGROK_URL=$(curl -s http://localhost:4040/api/tunnels 2>/dev/null \
+      | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['tunnels'][0]['public_url'])" 2>/dev/null || true)
+    if [ -n "$NGROK_URL" ]; then
+      info "ngrok 公网地址: ${GREEN}${NGROK_URL}${NC}"
+      return
+    fi
+    sleep 1
+  done
+  warn "ngrok 启动超时，请查看 ngrok.log"
+}
+
 # ── 清理已有进程 ─────────────────────────────────────────────
 stop_services 2>/dev/null || true
 
 # ── 主流程 ───────────────────────────────────────────────────
 $RUN_BACKEND  && start_backend
 $RUN_FRONTEND && start_frontend
+$RUN_NGROK    && start_ngrok
 
 echo ""
 echo -e "${GREEN}═══════════════════════════════════════${NC}"
 echo -e "${GREEN}  Agent 平台已启动${NC}"
 $RUN_BACKEND  && echo -e "  后端: http://localhost:8000"
 $RUN_FRONTEND && echo -e "  前端: http://localhost:3000"
+$RUN_NGROK    && echo -e "  管理: http://localhost:4040"
 echo -e "  停止: ./start.sh --stop"
 echo -e "${GREEN}═══════════════════════════════════════${NC}"
