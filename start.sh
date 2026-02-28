@@ -43,6 +43,9 @@ stop_services() {
     fi
     rm -f "$pidfile"
   done
+  # 兜底：清理可能残留的 uvicorn / next-server 进程
+  pkill -f "uvicorn app.main:app" 2>/dev/null || true
+  pkill -f "next-server" 2>/dev/null || true
   info "所有服务已停止。"
 }
 
@@ -96,7 +99,7 @@ start_backend() {
   fi
 
   # 启动
-  UVICORN_CMD="cd '$BACKEND_DIR' && '$BACKEND_DIR/venv/bin/uvicorn' app.main:app --host 0.0.0.0 --port 8000 --reload"
+  UVICORN_CMD="cd '$BACKEND_DIR' && '$BACKEND_DIR/venv/bin/uvicorn' app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app"
   $RUN_PREFIX "$UVICORN_CMD" > "$BACKEND_LOG" 2>&1 &
   echo $! > "$PID_DIR/backend.pid"
   info "后端已启动 (PID $!) → http://localhost:8000  日志: backend.log"

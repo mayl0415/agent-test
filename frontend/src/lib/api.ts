@@ -2,7 +2,7 @@
 
 import type { Skill, Task } from './types'
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000/api'
+const BASE = process.env.NEXT_PUBLIC_API_BASE ?? '/api'
 
 export async function fetchSkills(): Promise<Skill[]> {
   const res = await fetch(`${BASE}/skills`)
@@ -53,7 +53,6 @@ export function getStreamUrl(taskId: string): string {
 }
 
 export function getArtifactUrl(downloadUrl: string): string {
-  // download_url 形如 /api/tasks/{id}/artifact/{file}
-  const base = process.env.NEXT_PUBLIC_API_BASE?.replace('/api', '') ?? 'http://localhost:8000'
-  return `${base}${downloadUrl}`
+  // download_url 形如 /api/tasks/{id}/artifact/{file}，直接用相对路径走 Next.js 反代
+  return downloadUrl
 }
