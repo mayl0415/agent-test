@@ -76,9 +76,9 @@ skills/my-new-skill/
   └── 文件管理      — 任务级目录隔离 + TTL 清理
 ```
 
-## 对应领导关注点
+## 对应关注点
 
-| 领导关注点 | 在本架构中的位置 |
+| 关注点 | 在本架构中的位置 |
 |-----------|----------------|
 | CC SDK 二开 | `services/agent.py` — tool_use 循环封装 |
 | 文件管理 | `services/task_manager.py` — 三层目录 + TTL |
