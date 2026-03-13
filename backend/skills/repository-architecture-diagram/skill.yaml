@@ -1,0 +1,35 @@
+name: GitHub仓库架构图生成
+description: 拉取并分析 GitHub 公开代码仓库，探索项目结构，读取关键文件并生成 draw.io 架构图
+icon: 🧩
+tags: [代码分析, 架构图, GitHub]
+
+tools:
+  - bash
+  - file_write
+
+sandbox:
+  enabled: false          # 本地开发设为 false；生产建议设为 true
+  image: python:3.11-slim
+  timeout: 60
+
+input:
+  - type: text
+    label: GitHub仓库地址
+    placeholder: https://github.com/facebook/create-react-app
+    required: true
+
+  - type: text
+    label: 架构图类型（可选）
+    placeholder: 例如：模块架构图 / 项目结构图 / 调用流程图
+    required: false
+
+  - type: text
+    label: 分析重点（可选）
+    placeholder: 例如：构建流程、CLI执行流程、模块依赖
+    required: false
+
+output: drawio_diagram
+
+memory:
+  short_term: true
+  long_term: false
