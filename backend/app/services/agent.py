@@ -251,6 +251,7 @@ async def run_followup(
         max_turns=CLAUDE_MAX_TURNS,
         cwd=str(workspace),
         permission_mode="bypassPermissions",
+        # model=CLAUDE_MODEL,
         model=CLAUDE_MODEL,
         resume=task.session_id,
         env={

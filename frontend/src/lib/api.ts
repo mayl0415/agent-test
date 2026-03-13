@@ -4,6 +4,10 @@ import type { Skill, Task } from './types'
 
 const BASE = process.env.NEXT_PUBLIC_API_BASE ?? '/api'
 
+// SSE 流必须直连后端，绕过 Next.js rewrites 代理（代理层会缓冲响应，导致流式失效）
+// 如果配置了 ngrok 等公网地址，NEXT_PUBLIC_STREAM_BASE 应设为后端直连地址
+const STREAM_BASE = process.env.NEXT_PUBLIC_STREAM_BASE ?? 'http://localhost:8000/api'
+
 // ngrok 免费版会对浏览器请求插入警告拦截页，加此头跳过
 const EXTRA_HEADERS = { 'ngrok-skip-browser-warning': '1' }
 
@@ -53,7 +57,7 @@ export async function sendFollowup(
 }
 
 export function getStreamUrl(taskId: string): string {
-  return `${BASE}/tasks/${taskId}/stream`
+  return `${STREAM_BASE}/tasks/${taskId}/stream`
 }
 
 export function getArtifactUrl(downloadUrl: string): string {
